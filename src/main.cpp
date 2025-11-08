@@ -84,6 +84,21 @@ unsigned long shiftPressCount = 0;
 unsigned long startTime = 0;
 unsigned long currentTime = 0;
 
+// Animation variables
+uint8_t pulsePhase = 0;
+bool justPressed = false;
+unsigned long pressAnimationStart = 0;
+
+// Color definitions for modern UI
+#define COLOR_BG        0x0841      // Dark blue-gray background
+#define COLOR_PANEL     0x2124      // Lighter panel color
+#define COLOR_ACCENT    0x05FF      // Cyan accent
+#define COLOR_SUCCESS   0x07E0      // Green
+#define COLOR_WARNING   0xFD20      // Orange
+#define COLOR_DANGER    0xF800      // Red
+#define COLOR_TEXT      0xFFFF      // White text
+#define COLOR_TEXT_DIM  0x8410      // Dim text
+
 // Function prototypes
 void setupDisplay();
 void setupUSB();
@@ -92,6 +107,13 @@ void updateDisplay();
 void pressShiftKey();
 unsigned long getRandomDelay();
 String formatTime(unsigned long seconds);
+void drawHeader();
+void drawUptimePanel(unsigned long seconds);
+void drawCountdownPanel(unsigned long timeLeft, unsigned long totalTime);
+void drawStatsPanel();
+void drawProgressBar(int x, int y, int width, int height, float percentage, uint16_t color);
+void drawRoundRect(int x, int y, int width, int height, int radius, uint16_t color);
+void fillRoundRect(int x, int y, int width, int height, int radius, uint16_t color);
 
 void setup()
 {
@@ -124,50 +146,60 @@ void loop()
     lastShiftTime = currentTime;
     nextShiftDelay = getRandomDelay();
     shiftPressCount++;
+    justPressed = true;
+    pressAnimationStart = currentTime;
   }
 
-  // Update display every 100ms
+  // Update display every 50ms for smooth animations
   static unsigned long lastDisplayUpdate = 0;
-  if (currentTime - lastDisplayUpdate >= 100)
+  if (currentTime - lastDisplayUpdate >= 50)
   {
     updateDisplay();
     lastDisplayUpdate = currentTime;
+    pulsePhase = (pulsePhase + 1) % 255;
   }
 
-  delay(10); // Small delay to prevent CPU hogging
+  // Reset press animation after 500ms
+  if (justPressed && (currentTime - pressAnimationStart > 500))
+  {
+    justPressed = false;
+  }
+
+  delay(10);
 }
 
 void setupLED()
 {
   // Set LED to green to indicate ready
-  colors[0] = rgb_color{0, 50, 0}; // Dim green
+  colors[0] = rgb_color{0, 50, 0};
   ledStrip.write(colors, NUM_LEDS);
 }
 
 void setupDisplay()
 {
-  // Initialize display
   lcd.init();
-  lcd.setBrightness(128);
-  lcd.clear(TFT_BLACK);
-  lcd.setTextColor(TFT_WHITE);
+  lcd.setBrightness(255);
+  lcd.fillScreen(COLOR_BG);
+  lcd.setTextColor(COLOR_TEXT);
 
-  // Initial screen
-  lcd.setCursor(0, 0);
+  // Splash screen
   lcd.setTextSize(1);
-  lcd.println("USB-HID Shift Presser");
+  lcd.setCursor(10, 30);
+  lcd.setTextColor(COLOR_ACCENT);
+  lcd.println("USB HID KEYBOARD");
+  lcd.setCursor(30, 45);
+  lcd.setTextColor(COLOR_TEXT_DIM);
   lcd.println("Initializing...");
-  lcd.display();
 
-  delay(1000);
+  delay(1500);
+  lcd.fillScreen(COLOR_BG);
 }
 
 void setupUSB()
 {
-  // Initialize USB HID Keyboard
   keyboard.begin();
   USB.begin();
-  delay(1000); // Wait for USB to be recognized
+  delay(1000);
 }
 
 void updateDisplay()
@@ -175,116 +207,253 @@ void updateDisplay()
   static unsigned long lastUptimeSeconds = 0;
   static unsigned long lastTimeUntilShift = 9999;
   static unsigned long lastShiftCount = 0;
-  static bool firstRun = true;
-  static bool needsRedraw = false;
+  static bool needsFullRedraw = true;
 
-  // Get actual display dimensions
   int dispWidth = lcd.width();
   int dispHeight = lcd.height();
 
-  // Calculate uptime
   unsigned long uptimeSeconds = (currentTime - startTime) / 1000;
+  unsigned long timeUntilShift = 0;
 
-  // Calculate time until next shift press
-  unsigned long timeUntilShift = (nextShiftDelay - (currentTime - lastShiftTime)) / 1000;
-  if (currentTime - lastShiftTime > nextShiftDelay)
+  if (currentTime - lastShiftTime < nextShiftDelay)
   {
-    timeUntilShift = 0;
+    timeUntilShift = (nextShiftDelay - (currentTime - lastShiftTime)) / 1000;
   }
 
-  // Only redraw on first run or if something changed
-  if (firstRun)
+  // Full redraw on first run
+  if (needsFullRedraw)
   {
-    firstRun = false;
-
-    // Clear entire display properly
-    lcd.clear(TFT_BLACK);
-
-    // Title bar - White background with black text (static, draw once)
-    lcd.fillRect(0, 0, dispWidth, 12, TFT_WHITE);
-    lcd.setTextColor(TFT_BLACK, TFT_WHITE);
-    lcd.setCursor(2, 2);
-    lcd.setTextSize(1);
-    lcd.print("SHIFT KEY PRESSER");
-
-    // Draw static labels with background
-    lcd.setTextSize(1);
-    lcd.setCursor(2, 20);
-    lcd.setTextColor(TFT_CYAN, TFT_BLACK);
-    lcd.print("Uptime:");
-
-    lcd.setCursor(2, 34);
-    lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
-    lcd.print("Next in:");
-
-    lcd.setCursor(2, dispHeight - 10);
-    lcd.setTextColor(TFT_MAGENTA, TFT_BLACK);
-    lcd.print("Pressed:");
-
-    lcd.display();
-    needsRedraw = false;
-  }
-
-  // Update uptime if changed
-  if (uptimeSeconds != lastUptimeSeconds)
-  {
-    lcd.fillRect(50, 20, dispWidth - 50, 8, TFT_BLACK); // Clear old time
-    lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-    lcd.setTextSize(1);
-    lcd.setCursor(50, 20);
-    lcd.print(formatTime(uptimeSeconds));
+    lcd.fillScreen(COLOR_BG);
+    drawHeader();
+    needsFullRedraw = false;
     lastUptimeSeconds = uptimeSeconds;
-    needsRedraw = true;
-  }
-
-  // Update countdown if changed
-  if (timeUntilShift != lastTimeUntilShift)
-  {
-    lcd.fillRect(0, 46, dispWidth, 18, TFT_BLACK); // Clear entire countdown area
-    lcd.setCursor(4, 48);
-    lcd.setTextSize(2);
-    if (timeUntilShift < 10)
-    {
-      lcd.setTextColor(TFT_RED, TFT_BLACK); // Red when close
-    }
-    else
-    {
-      lcd.setTextColor(TFT_GREEN, TFT_BLACK); // Green otherwise
-    }
-    char timeBuffer[12];
-    sprintf(timeBuffer, "%02lu sec", timeUntilShift);
-    lcd.print(timeBuffer);
     lastTimeUntilShift = timeUntilShift;
-    needsRedraw = true;
-  }
-
-  // Update press count if changed
-  if (shiftPressCount != lastShiftCount)
-  {
-    lcd.fillRect(60, dispHeight - 10, dispWidth - 60, 8, TFT_BLACK); // Clear old count
-    lcd.setTextSize(1);
-    lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-    lcd.setCursor(60, dispHeight - 10);
-    lcd.print(shiftPressCount);
-    lcd.print(" times");
     lastShiftCount = shiftPressCount;
-    needsRedraw = true;
   }
 
-  // Only call display() if something changed
-  if (needsRedraw)
+  // Update uptime panel
+  if (uptimeSeconds != lastUptimeSeconds || needsFullRedraw)
   {
-    lcd.display();
-    needsRedraw = false;
+    drawUptimePanel(uptimeSeconds);
+    lastUptimeSeconds = uptimeSeconds;
   }
+
+  // Update countdown panel (always update for animations)
+  if (timeUntilShift != lastTimeUntilShift || needsFullRedraw)
+  {
+    drawCountdownPanel(timeUntilShift, nextShiftDelay / 1000);
+    lastTimeUntilShift = timeUntilShift;
+  }
+
+  // Update stats panel
+  if (shiftPressCount != lastShiftCount || needsFullRedraw)
+  {
+    drawStatsPanel();
+    lastShiftCount = shiftPressCount;
+  }
+}
+
+void drawHeader()
+{
+  int dispWidth = lcd.width();
+
+  // Gradient header background
+  for (int y = 0; y < 16; y++)
+  {
+    uint16_t color = lcd.color565(0, 40 + y * 2, 60 + y * 3);
+    lcd.drawFastHLine(0, y, dispWidth, color);
+  }
+
+  // Header border
+  lcd.drawFastHLine(0, 15, dispWidth, COLOR_ACCENT);
+
+  // Title with keyboard icon
+  lcd.setTextSize(1);
+  lcd.setTextColor(COLOR_TEXT);
+  lcd.setCursor(4, 4);
+  lcd.print((char)0x10); // Triangle icon
+  lcd.print(" AUTO-PRESSER");
+
+  // Status indicator (top right)
+  int statusX = dispWidth - 10;
+  lcd.fillCircle(statusX, 8, 3, COLOR_SUCCESS);
+  lcd.drawCircle(statusX, 8, 4, COLOR_TEXT);
+}
+
+void drawUptimePanel(unsigned long seconds)
+{
+  int panelY = 18;
+  int panelH = 16;
+  int dispWidth = lcd.width();
+
+  // Clear panel area
+  lcd.fillRect(2, panelY, dispWidth - 4, panelH, COLOR_PANEL);
+
+  // Panel border
+  drawRoundRect(2, panelY, dispWidth - 4, panelH, 2, COLOR_ACCENT);
+
+  // Clock icon and label
+  lcd.setTextSize(1);
+  lcd.setTextColor(COLOR_ACCENT);
+  lcd.setCursor(5, panelY + 4);
+  lcd.print((char)0x0F); // Clock symbol
+
+  lcd.setTextColor(COLOR_TEXT_DIM);
+  lcd.setCursor(15, panelY + 4);
+  lcd.print("UP:");
+
+  // Time value
+  lcd.setTextColor(COLOR_TEXT);
+  lcd.setCursor(35, panelY + 4);
+  lcd.print(formatTime(seconds));
+}
+
+void drawCountdownPanel(unsigned long timeLeft, unsigned long totalTime)
+{
+  int panelY = 36;
+  int panelH = 30;
+  int dispWidth = lcd.width();
+
+  // Clear panel area
+  lcd.fillRect(2, panelY, dispWidth - 4, panelH, COLOR_PANEL);
+
+  // Determine color based on time left
+  uint16_t accentColor = COLOR_SUCCESS;
+  if (timeLeft < 5)
+    accentColor = COLOR_DANGER;
+  else if (timeLeft < 15)
+    accentColor = COLOR_WARNING;
+
+  // Panel border with pulsing effect when near zero
+  if (timeLeft < 5 && (pulsePhase % 64) < 32)
+  {
+    drawRoundRect(2, panelY, dispWidth - 4, panelH, 3, accentColor);
+    drawRoundRect(3, panelY + 1, dispWidth - 6, panelH - 2, 3, accentColor);
+  }
+  else
+  {
+    drawRoundRect(2, panelY, dispWidth - 4, panelH, 3, accentColor);
+  }
+
+  // Calculate total width for centering both label and number together
+  char timeStr[12];
+  sprintf(timeStr, "%lu", timeLeft);
+
+  // "NEXT IN:" label (size 1) = 8 chars * 6 = 48 pixels
+  // Space = 4 pixels
+  // Number (size 2) = roughly strlen * 12 pixels
+  // "s" (size 1) = 6 pixels
+
+  int labelWidth = 8 * 6;  // "NEXT IN:"
+  int spaceWidth = 4;
+  int numberWidth = strlen(timeStr) * 12;  // Size 2 for number
+  int suffixWidth = 6;  // "s"
+  int totalWidth = labelWidth + spaceWidth + numberWidth + suffixWidth;
+
+  int startX = (dispWidth - totalWidth) / 2;
+  int textY = panelY + 10;  // Vertically centered in 30px panel
+
+  // Draw "NEXT IN:" label
+  lcd.setTextSize(1);
+  lcd.setTextColor(COLOR_TEXT_DIM);
+  lcd.setCursor(startX, textY);
+  lcd.print("NEXT IN:");
+
+  // Draw countdown number (larger)
+  lcd.setTextSize(2);
+  lcd.setTextColor(accentColor);
+  lcd.setCursor(startX + labelWidth + spaceWidth, textY - 2);  // -2 to align baseline
+  lcd.print(timeLeft);
+
+  // Draw "s" suffix
+  lcd.setTextSize(1);
+  lcd.setTextColor(COLOR_TEXT_DIM);
+  lcd.setCursor(startX + labelWidth + spaceWidth + numberWidth, textY);
+  lcd.print("s");
+
+  // Progress bar at bottom of panel
+  float percentage = 1.0 - ((float)timeLeft / (float)totalTime);
+  if (percentage < 0) percentage = 0;
+  if (percentage > 1) percentage = 1;
+
+  drawProgressBar(6, panelY + panelH - 6, dispWidth - 12, 3, percentage, accentColor);
+}
+
+void drawStatsPanel()
+{
+  int panelY = 68;
+  int panelH = 11;
+  int dispWidth = lcd.width();
+
+  // Clear panel area
+  lcd.fillRect(2, panelY, dispWidth - 4, panelH, COLOR_PANEL);
+
+  // Panel border
+  lcd.drawRect(2, panelY, dispWidth - 4, panelH, COLOR_ACCENT);
+
+  // Checkmark icon
+  lcd.setTextSize(1);
+  lcd.setTextColor(COLOR_SUCCESS);
+  lcd.setCursor(5, panelY + 2);
+  lcd.print((char)0xFB); // Check mark
+
+  // Label
+  lcd.setTextColor(COLOR_TEXT_DIM);
+  lcd.setCursor(15, panelY + 2);
+  lcd.print("TOTAL:");
+
+  // Count value
+  lcd.setTextColor(COLOR_TEXT);
+  lcd.setCursor(55, panelY + 2);
+  lcd.print(shiftPressCount);
+
+  // Animation flash on new press
+  if (justPressed)
+  {
+    lcd.drawRect(1, panelY - 1, dispWidth - 2, panelH + 2, COLOR_SUCCESS);
+  }
+}
+
+void drawProgressBar(int x, int y, int width, int height, float percentage, uint16_t color)
+{
+  // Background
+  lcd.fillRect(x, y, width, height, COLOR_BG);
+  lcd.drawRect(x, y, width, height, COLOR_TEXT_DIM);
+
+  // Filled portion
+  int fillWidth = (int)((width - 2) * percentage);
+  if (fillWidth > 0)
+  {
+    lcd.fillRect(x + 1, y + 1, fillWidth, height - 2, color);
+  }
+}
+
+void drawRoundRect(int x, int y, int width, int height, int radius, uint16_t color)
+{
+  // Simplified rounded rectangle (just draws corners)
+  lcd.drawRect(x + radius, y, width - 2 * radius, height, color);
+  lcd.drawRect(x, y + radius, width, height - 2 * radius, color);
+
+  // Corner pixels (simple version)
+  lcd.drawPixel(x + radius, y, color);
+  lcd.drawPixel(x + width - radius - 1, y, color);
+  lcd.drawPixel(x + radius, y + height - 1, color);
+  lcd.drawPixel(x + width - radius - 1, y + height - 1, color);
+}
+
+void fillRoundRect(int x, int y, int width, int height, int radius, uint16_t color)
+{
+  lcd.fillRect(x + radius, y, width - 2 * radius, height, color);
+  lcd.fillRect(x, y + radius, radius, height - 2 * radius, color);
+  lcd.fillRect(x + width - radius, y + radius, radius, height - 2 * radius, color);
 }
 
 void pressShiftKey()
 {
   Serial.println("Pressing Shift key...");
 
-  // Flash LED blue when pressing
-  colors[0] = rgb_color{0, 0, 255}; // Blue
+  // Flash LED purple when pressing
+  colors[0] = rgb_color{128, 0, 255};
   ledStrip.write(colors, NUM_LEDS);
 
   // Press and release Shift key
@@ -293,7 +462,7 @@ void pressShiftKey()
   keyboard.release(KEY_LEFT_SHIFT);
 
   // Return LED to green
-  colors[0] = rgb_color{0, 50, 0}; // Green
+  colors[0] = rgb_color{0, 50, 0};
   ledStrip.write(colors, NUM_LEDS);
 
   Serial.printf("Shift pressed! Total count: %lu\n", shiftPressCount + 1);
@@ -301,7 +470,6 @@ void pressShiftKey()
 
 unsigned long getRandomDelay()
 {
-  // Random delay between 7 and 60 seconds (7000 to 60000 ms)
   unsigned long delayMs = random(7000, 60001);
   Serial.printf("Next shift in %lu ms (%lu seconds)\n", delayMs, delayMs / 1000);
   return delayMs;
