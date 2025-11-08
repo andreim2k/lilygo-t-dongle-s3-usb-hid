@@ -39,14 +39,14 @@ public:
       cfg.pin_busy = DISPLAY_BUSY;
       cfg.panel_width = DISPLAY_HEIGHT;
       cfg.panel_height = DISPLAY_WIDTH;
-      cfg.offset_rotation = 3;
+      cfg.offset_rotation = 1; // Changed from 3 to 1 for right-side USB port
       cfg.readable = true;
       cfg.invert = true;
       cfg.rgb_order = false;
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
       cfg.offset_x = 26;
-      cfg.offset_y = -1;
+      cfg.offset_y = 1;
       cfg.dummy_read_pixel = 8;
       cfg.dummy_read_bits = 1;
       cfg.memory_width = 132;
@@ -90,14 +90,14 @@ bool justPressed = false;
 unsigned long pressAnimationStart = 0;
 
 // Color definitions for modern UI
-#define COLOR_BG        0x0841      // Dark blue-gray background
-#define COLOR_PANEL     0x2124      // Lighter panel color
-#define COLOR_ACCENT    0x05FF      // Cyan accent
-#define COLOR_SUCCESS   0x07E0      // Green
-#define COLOR_WARNING   0xFD20      // Orange
-#define COLOR_DANGER    0xF800      // Red
-#define COLOR_TEXT      0xFFFF      // White text
-#define COLOR_TEXT_DIM  0x8410      // Dim text
+#define COLOR_BG 0x0841       // Dark blue-gray background
+#define COLOR_PANEL 0x2124    // Lighter panel color
+#define COLOR_ACCENT 0x05FF   // Cyan accent
+#define COLOR_SUCCESS 0x07E0  // Green
+#define COLOR_WARNING 0xFD20  // Orange
+#define COLOR_DANGER 0xF800   // Red
+#define COLOR_TEXT 0xFFFF     // White text
+#define COLOR_TEXT_DIM 0x8410 // Dim text
 
 // Function prototypes
 void setupDisplay();
@@ -344,14 +344,14 @@ void drawCountdownPanel(unsigned long timeLeft, unsigned long totalTime)
   // Number (size 2) = roughly strlen * 12 pixels
   // "s" (size 1) = 6 pixels
 
-  int labelWidth = 8 * 6;  // "NEXT IN:"
+  int labelWidth = 8 * 6; // "NEXT IN:"
   int spaceWidth = 4;
-  int numberWidth = strlen(timeStr) * 12;  // Size 2 for number
-  int suffixWidth = 6;  // "s"
+  int numberWidth = strlen(timeStr) * 12; // Size 2 for number
+  int suffixWidth = 6;                    // "s"
   int totalWidth = labelWidth + spaceWidth + numberWidth + suffixWidth;
 
   int startX = (dispWidth - totalWidth) / 2;
-  int textY = panelY + 10;  // Vertically centered in 30px panel
+  int textY = panelY + 10; // Vertically centered in 30px panel
 
   // Draw "NEXT IN:" label
   lcd.setTextSize(1);
@@ -362,7 +362,7 @@ void drawCountdownPanel(unsigned long timeLeft, unsigned long totalTime)
   // Draw countdown number (larger)
   lcd.setTextSize(2);
   lcd.setTextColor(accentColor);
-  lcd.setCursor(startX + labelWidth + spaceWidth, textY - 2);  // -2 to align baseline
+  lcd.setCursor(startX + labelWidth + spaceWidth, textY - 2); // -2 to align baseline
   lcd.print(timeLeft);
 
   // Draw "s" suffix
@@ -373,8 +373,10 @@ void drawCountdownPanel(unsigned long timeLeft, unsigned long totalTime)
 
   // Progress bar at bottom of panel
   float percentage = 1.0 - ((float)timeLeft / (float)totalTime);
-  if (percentage < 0) percentage = 0;
-  if (percentage > 1) percentage = 1;
+  if (percentage < 0)
+    percentage = 0;
+  if (percentage > 1)
+    percentage = 1;
 
   drawProgressBar(6, panelY + panelH - 6, dispWidth - 12, 3, percentage, accentColor);
 }
