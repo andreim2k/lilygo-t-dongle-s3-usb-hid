@@ -1,31 +1,33 @@
-# USB-HID Shift Key Presser
+# USB-HID Arrow Key Presser
 
-A simple USB HID project for the LILYGO T-Dongle-S3 that randomly presses the Shift key at intervals between 7 and 60 seconds.
+A USB HID project for the LILYGO T-Dongle-S3 that randomly sends LEFT ARROW followed by RIGHT ARROW key presses at intervals between 7 and 60 seconds.
+
+**Note**: The display is configured for the right-side USB plug orientation of the T-Dongle-S3.
 
 ## Features
 
-- **Random Shift Key Press**: Automatically presses the Shift key at random intervals (7-60 seconds)
+- **Random Arrow Key Press**: Automatically sends LEFT ARROW then RIGHT ARROW keys at random intervals (7-60 seconds)
 - **Visual Display**: 160x80 pixel display showing:
   - Current uptime (HH:MM:SS format)
   - Countdown to next Shift key press
   - Total number of Shift keys pressed
 - **LED Indicator**:
   - Green: Ready/Idle state
-  - Blue: Pressing Shift key
+  - Purple: Pressing arrow keys
 - **USB HID**: Functions as a USB keyboard device
 
 ## Display Layout
 
 ```
 ┌──────────────────────┐
-│ SHIFT KEY PRESSER    │ ← White title bar
+│ AUTO-PRESSER ▶       │ ← White title bar with status indicator
 ├──────────────────────┤
-│ Uptime: 00:12:34     │ ← Cyan label, white time
+│ ⏰ UP: 00:12:34      │ ← Clock icon, cyan label, white time
 │                      │
-│ Next in:             │ ← Yellow label
-│ 23 sec               │ ← Large green text (red when < 10s)
+│ NEXT IN: 23 s        │ ← Countdown in large text (green, yellow, or red)
+│ [████████░]          │ ← Progress bar
 │                      │
-│ Pressed: 42 times    │ ← Magenta label, white count
+│ ✓ TOTAL: 42          │ ← Check mark icon, press count
 └──────────────────────┘
 ```
 
@@ -84,18 +86,19 @@ The USB-HID environment is now the only and default environment in `platformio.i
 - The device initializes as a USB HID keyboard
 - A random delay between 7-60 seconds is generated
 - When the timer expires:
-  - The Shift key is pressed and released
-  - The LED flashes blue
+  - LEFT ARROW key is pressed and released
+  - RIGHT ARROW key is pressed and released immediately after (20ms gap)
+  - The LED flashes purple
   - The press counter increments
   - A new random delay is generated
-- The display updates every 100ms to show current status
+- The display updates every 50ms to show current status with smooth animations
 
 ## Use Cases
 
-- Preventing screen savers from activating
+- Simulating cursor movement in applications
 - Keeping computer sessions active
-- Testing keyboard input handling
-- Anti-idle application
+- Testing arrow key input handling
+- Anti-idle application with cursor navigation
 
 ## Code Structure
 
@@ -136,10 +139,19 @@ Available colors: `TFT_BLACK`, `TFT_WHITE`, `TFT_RED`, `TFT_GREEN`, `TFT_BLUE`, 
 
 ### Press Different Keys
 
-Modify the `pressShiftKey()` function:
+Modify the `pressShiftKey()` function in `src/main.cpp`:
 
 ```cpp
-keyboard.press(KEY_LEFT_SHIFT);  // Change to other keys like KEY_SPACE, etc.
+// Current: LEFT ARROW then RIGHT ARROW
+keyboard.press(KEY_LEFT_ARROW);
+delay(50);
+keyboard.release(KEY_LEFT_ARROW);
+delay(20);
+keyboard.press(KEY_RIGHT_ARROW);
+delay(50);
+keyboard.release(KEY_RIGHT_ARROW);
+
+// Change to other keys as needed, e.g. KEY_UP_ARROW, KEY_DOWN_ARROW, etc.
 ```
 
 ## Troubleshooting
@@ -168,3 +180,7 @@ Same as the parent USBArmyKnife project.
 ## Credits
 
 Based on the USBArmyKnife project hardware configuration.
+
+## Display Orientation
+
+The display is configured with `offset_rotation = 1` for proper orientation when the USB connector is on the right side of the T-Dongle-S3. If your device has the USB port in a different position, adjust the `offset_rotation` value in `src/main.cpp` (line 42).

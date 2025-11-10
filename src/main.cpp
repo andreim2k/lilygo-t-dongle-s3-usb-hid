@@ -197,9 +197,20 @@ void setupDisplay()
 
 void setupUSB()
 {
+  // Initialize keyboard FIRST, then USB
+  Serial.println("Initializing keyboard...");
   keyboard.begin();
+  delay(500);
+  
+  // Then add it to USB and start USB
+  Serial.println("Starting USB with keyboard...");
   USB.begin();
-  delay(1000);
+  delay(3000);  // Give USB time to enumerate and be recognized by host
+  
+  Serial.println("USB HID Keyboard initialized!");
+  Serial.println("Waiting for host to recognize device...");
+  delay(2000);
+  Serial.println("Ready to send keys!");
 }
 
 void updateDisplay()
@@ -452,22 +463,34 @@ void fillRoundRect(int x, int y, int width, int height, int radius, uint16_t col
 
 void pressShiftKey()
 {
-  Serial.println("Pressing Shift key...");
+  Serial.println("\n=== PRESSING SHIFT KEY ===");
+  Serial.printf("Time: %lu ms, Press count: %lu\n", millis(), shiftPressCount + 1);
 
   // Flash LED purple when pressing
   colors[0] = rgb_color{128, 0, 255};
   ledStrip.write(colors, NUM_LEDS);
+  Serial.println("LED set to purple");
 
-  // Press and release Shift key
-  keyboard.press(KEY_LEFT_SHIFT);
+  // Send LEFT ARROW key
+  Serial.println("Pressing LEFT ARROW key...");
+  keyboard.press(KEY_LEFT_ARROW);
   delay(50);
-  keyboard.release(KEY_LEFT_SHIFT);
+  keyboard.release(KEY_LEFT_ARROW);
+  Serial.println("LEFT ARROW released, now sending RIGHT ARROW...");
+  
+  // Quickly send RIGHT ARROW
+  
+  keyboard.press(KEY_RIGHT_ARROW);
+  delay(50);
+  keyboard.release(KEY_RIGHT_ARROW);
+  Serial.println("RIGHT ARROW sent!");
 
   // Return LED to green
   colors[0] = rgb_color{0, 50, 0};
   ledStrip.write(colors, NUM_LEDS);
+  Serial.println("LED set to green");
 
-  Serial.printf("Shift pressed! Total count: %lu\n", shiftPressCount + 1);
+  Serial.printf("=== SHIFT press complete! Total: %lu ===\n\n", shiftPressCount + 1);
 }
 
 unsigned long getRandomDelay()
