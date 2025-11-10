@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <USB.h>
 #include <USBHIDKeyboard.h>
+#include <USBHIDMouse.h>
 #include <LovyanGFX.hpp>
 #include <APA102.h>
 
@@ -68,8 +69,9 @@ public:
 
 static LGFX_USB_HID lcd;
 
-// USB Keyboard
+// USB Keyboard and Mouse
 USBHIDKeyboard keyboard;
+USBHIDMouse mouse;
 
 // LED setup
 APA102<LED_DI_PIN, LED_CI_PIN> ledStrip;
@@ -104,7 +106,7 @@ void setupDisplay();
 void setupUSB();
 void setupLED();
 void updateDisplay();
-void pressShiftKey();
+void moveMouse();
 unsigned long getRandomDelay();
 String formatTime(unsigned long seconds);
 void drawHeader();
@@ -132,17 +134,17 @@ void setup()
   lastShiftTime = millis();
   nextShiftDelay = getRandomDelay();
 
-  Serial.println("USB-HID Shift Key Presser Started!");
+  Serial.println("USB-HID Mouse Mover Started!");
 }
 
 void loop()
 {
   currentTime = millis();
 
-  // Check if it's time to press Shift
+  // Check if it's time to move mouse
   if (currentTime - lastShiftTime >= nextShiftDelay)
   {
-    pressShiftKey();
+    moveMouse();
     lastShiftTime = currentTime;
     nextShiftDelay = getRandomDelay();
     shiftPressCount++;
@@ -197,20 +199,24 @@ void setupDisplay()
 
 void setupUSB()
 {
-  // Initialize keyboard FIRST, then USB
+  // Initialize keyboard and mouse FIRST, then USB
   Serial.println("Initializing keyboard...");
   keyboard.begin();
-  delay(500);
+  delay(250);
   
-  // Then add it to USB and start USB
-  Serial.println("Starting USB with keyboard...");
+  Serial.println("Initializing mouse...");
+  mouse.begin();
+  delay(250);
+  
+  // Then start USB
+  Serial.println("Starting USB with keyboard and mouse...");
   USB.begin();
   delay(3000);  // Give USB time to enumerate and be recognized by host
   
-  Serial.println("USB HID Keyboard initialized!");
+  Serial.println("USB HID Keyboard and Mouse initialized!");
   Serial.println("Waiting for host to recognize device...");
   delay(2000);
-  Serial.println("Ready to send keys!");
+  Serial.println("Ready to move mouse!");
 }
 
 void updateDisplay()
@@ -461,42 +467,40 @@ void fillRoundRect(int x, int y, int width, int height, int radius, uint16_t col
   lcd.fillRect(x + width - radius, y + radius, radius, height - 2 * radius, color);
 }
 
-void pressShiftKey()
+void moveMouse()
 {
-  Serial.println("\n=== PRESSING SHIFT KEY ===");
-  Serial.printf("Time: %lu ms, Press count: %lu\n", millis(), shiftPressCount + 1);
+  Serial.println("\n=== MOVING MOUSE ===");
+  Serial.printf("Time: %lu ms, Move count: %lu\n", millis(), shiftPressCount + 1);
 
-  // Flash LED purple when pressing
+  // Flash LED purple when moving
   colors[0] = rgb_color{128, 0, 255};
   ledStrip.write(colors, NUM_LEDS);
   Serial.println("LED set to purple");
 
-  // Send LEFT ARROW key
-  Serial.println("Pressing LEFT ARROW key...");
-  keyboard.press(KEY_LEFT_ARROW);
-  delay(50);
-  keyboard.release(KEY_LEFT_ARROW);
-  Serial.println("LEFT ARROW released, now sending RIGHT ARROW...");
+  // Move mouse 1 pixel to the right
+  Serial.println("Moving mouse 1 pixel right...");
+  mouse.move(1, 0);
+  delay(20);
   
-  // Quickly send RIGHT ARROW
+  // Quickly move mouse 1 pixel to the left
+  Serial.println("Moving mouse 1 pixel left...");
+  mouse.move(-1, 0);
+  delay(20);
   
-  keyboard.press(KEY_RIGHT_ARROW);
-  delay(50);
-  keyboard.release(KEY_RIGHT_ARROW);
-  Serial.println("RIGHT ARROW sent!");
+  Serial.println("Mouse movement complete!");
 
   // Return LED to green
   colors[0] = rgb_color{0, 50, 0};
   ledStrip.write(colors, NUM_LEDS);
   Serial.println("LED set to green");
 
-  Serial.printf("=== SHIFT press complete! Total: %lu ===\n\n", shiftPressCount + 1);
+  Serial.printf("=== Mouse movement complete! Total: %lu ===\n\n", shiftPressCount + 1);
 }
 
 unsigned long getRandomDelay()
 {
   unsigned long delayMs = random(7000, 60001);
-  Serial.printf("Next shift in %lu ms (%lu seconds)\n", delayMs, delayMs / 1000);
+  Serial.printf("Next mouse move in %lu ms (%lu seconds)\n", delayMs, delayMs / 1000);
   return delayMs;
 }
 
